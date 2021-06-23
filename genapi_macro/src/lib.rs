@@ -32,6 +32,8 @@ use syn::{
 };
 use syn::{punctuated::Punctuated, Member};
 
+mod utils;
+
 #[proc_macro]
 pub fn create(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as ExprStruct);
@@ -53,16 +55,13 @@ pub fn create_model(input: TokenStream) -> TokenStream {
 fn impl_ignite(ast: ExprArray) -> TokenStream {
     dbg!(&ast);
     let gen = quote! {
-
-
         rocket::ignite().mount("/", routes!#ast).launch();
-
     };
-
     gen.into()
 }
 
 fn impl_create(ast: ExprStruct) -> TokenStream {
+    // TODO move this into a util function
     let path_field = ast.fields.first();
     let path_value = path_field.map(|f| &f.expr).unwrap();
     let path_string = match path_value {
@@ -87,7 +86,7 @@ fn impl_create(ast: ExprStruct) -> TokenStream {
     let response_field = ast.fields.last();
     let response_value = response_field.map(|f| &f.expr).unwrap();
 
-    let fn_ident = Ident::new(&path_string, Sp::call_site());
+    let fn_ident = utils::mk_ident(&path_string);
     let path_attr = format!("/{}", path_string).to_string();
 
     // THIS IS THE OUTPUT YOU WANT TO PRODUCE
@@ -97,12 +96,11 @@ fn impl_create(ast: ExprStruct) -> TokenStream {
         fn #fn_ident() -> &'static str {
             #response_value.body
         }
-        // rocket::ignite().mount("/", routes![#fn_ident]).launch();
-
     };
 
     gen.into()
 }
+
 fn impl_create_model(ast: ExprStruct) -> TokenStream {
     // get the name field which is the first field
     let name_field = ast.fields.first();
@@ -114,11 +112,11 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
         },
         _ => panic!(),
     };
-    let struct_name_ident = Ident::new(&name_string, Sp::call_site());
+    let struct_name_ident = utils::mk_ident(&name_string);
     let mut table_name = String::from(&name_string);
     table_name.push_str("s");
     name_string.insert_str(0, "New");
-    let new_struct_name_ident = Ident::new(&name_string, Sp::call_site());
+    let new_struct_name_ident = utils::mk_ident(&name_string);
 
     // get the fields field by name
     let fields_field = ast.fields.iter().find(|field| match &field.member {
@@ -127,7 +125,7 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
     });
 
     let fields_value: Expr = fields_field.cloned().map(|f| f.expr).unwrap();
-
+    // TODO figure out what we are doing here
     let fields_array = match &fields_value {
         Expr::Array(expr_array) => expr_array.elems.iter().map(|field: &Expr| match field {
             Expr::Struct(expr_struct) => {
@@ -139,34 +137,7 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
                     },
                     _ => panic!(),
                 };
-                Field {
-                    attrs: vec![],
-                    vis: Visibility::Public(VisPublic {
-                        pub_token: Pub(Sp::call_site()),
-                    }),
-                    ident: Some(Ident::new(&field_name, Sp::call_site())),
-                    colon_token: Some(Colon(Sp::call_site())),
-                    ty: Type::Path(TypePath {
-                        qself: None,
-                        path: OtherPath {
-                            leading_colon: None,
-                            segments: Punctuated::from_iter(vec![
-                                PathSegment {
-                                    ident: Ident::new("std", Sp::call_site()),
-                                    arguments: PathArguments::None,
-                                },
-                                PathSegment {
-                                    ident: Ident::new("string", Sp::call_site()),
-                                    arguments: PathArguments::None,
-                                },
-                                PathSegment {
-                                    ident: Ident::new("String", Sp::call_site()),
-                                    arguments: PathArguments::None,
-                                },
-                            ]),
-                        },
-                    }),
-                }
+                utils::mk_field(&field_name)
             }
             _ => panic!("Not Expression Struct"),
         }),
@@ -193,10 +164,4 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
     };
 
     gen.into()
-}
-
-struct Fiel {
-    name: String,
-    typ: String,
-    // TODO add other fields like optional, default etc..
 }
