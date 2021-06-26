@@ -61,16 +61,7 @@ fn impl_ignite(ast: ExprArray) -> TokenStream {
 }
 
 fn impl_create(ast: ExprStruct) -> TokenStream {
-    // TODO move this into a util function
-    let path_field = ast.fields.first();
-    let path_value = path_field.map(|f| &f.expr).unwrap();
-    let path_string = match path_value {
-        Expr::Lit(expr_lit) => match &expr_lit.lit {
-            Lit::Str(str_lit) => str_lit.value(),
-            _ => panic!(),
-        },
-        _ => panic!(),
-    };
+    let path_string = utils::gt_first_field(&ast);
 
     let mut it = ast.fields.iter();
     it.next();
@@ -102,41 +93,21 @@ fn impl_create(ast: ExprStruct) -> TokenStream {
 }
 
 fn impl_create_model(ast: ExprStruct) -> TokenStream {
-    // get the name field which is the first field
-    let name_field = ast.fields.first();
-    let name_value = name_field.map(|f| &f.expr).unwrap();
-    let mut name_string = match name_value {
-        Expr::Lit(expr_lit) => match &expr_lit.lit {
-            Lit::Str(str_lit) => str_lit.value(),
-            _ => panic!(),
-        },
-        _ => panic!(),
-    };
+    let mut name_string = utils::gt_first_field(&ast);
     let struct_name_ident = utils::mk_ident(&name_string);
     let mut table_name = String::from(&name_string);
     table_name.push_str("s");
     name_string.insert_str(0, "New");
     let new_struct_name_ident = utils::mk_ident(&name_string);
 
-    // get the fields field by name
-    let fields_field = ast.fields.iter().find(|field| match &field.member {
-        Member::Named(name) => name == "fields",
-        Member::Unnamed(_) => false,
-    });
-
+    let fields_field = utils::gt_field_by_name(&ast, "fields");
     let fields_value: Expr = fields_field.cloned().map(|f| f.expr).unwrap();
+
     // TODO figure out what we are doing here
     let fields_array = match &fields_value {
         Expr::Array(expr_array) => expr_array.elems.iter().map(|field: &Expr| match field {
             Expr::Struct(expr_struct) => {
-                let field_expr = &expr_struct.fields.first().unwrap().expr;
-                let field_name = match field_expr {
-                    Expr::Lit(expr_lit) => match &expr_lit.lit {
-                        Lit::Str(str_lit) => str_lit.value(),
-                        _ => panic!(),
-                    },
-                    _ => panic!(),
-                };
+                let field_name = utils::gt_first_field(expr_struct);
                 utils::mk_field(&field_name)
             }
             _ => panic!("Not Expression Struct"),
