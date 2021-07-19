@@ -1,11 +1,12 @@
-use std::iter::FromIterator;
+use std::iter::{FromIterator, Map};
 
+use super::record::{Record, Rfield};
 use proc_macro2::Span;
 use syn::{
     punctuated::Punctuated,
     token::{Colon, Pub, Star},
-    Expr, ExprStruct, Field, FieldValue, Ident, Lit, Member, Path, PathArguments, PathSegment,
-    Type, TypePath, VisPublic, Visibility,
+    Expr, ExprArray, ExprStruct, Field, FieldValue, Ident, Lit, Member, Path, PathArguments,
+    PathSegment, Type, TypePath, VisPublic, Visibility,
 };
 
 pub fn mk_ident(name: &str) -> Ident {

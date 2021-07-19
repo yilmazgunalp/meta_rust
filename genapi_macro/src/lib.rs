@@ -32,6 +32,7 @@ use syn::{
 };
 use syn::{punctuated::Punctuated, Member};
 
+mod record;
 mod utils;
 
 #[proc_macro]
@@ -50,6 +51,105 @@ pub fn ignite(input: TokenStream) -> TokenStream {
 pub fn create_model(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as ExprStruct);
     impl_create_model(ast)
+}
+
+#[proc_macro]
+pub fn get_endpoint(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as ExprStruct);
+    impl_get_endpoint(ast)
+}
+
+fn impl_get_endpoint(ast: ExprStruct) -> TokenStream {
+    // turn this into a utility function
+    let name_string = utils::gt_first_field(&ast);
+    let struct_name_ident = utils::mk_ident(&name_string);
+    let mut table_name = String::from(&name_string);
+    table_name.push_str("s");
+
+    let table_name_ident = utils::mk_ident(&table_name);
+
+    let gen = quote! {
+
+        #[get("/")]
+        pub fn list(db_conn: State<db::ConnectionPool>) -> Json<Vec<#struct_name_ident>> {
+
+        let conn = db_conn.get().expect("Could not establish database connection");
+        let bikes: Vec<#struct_name_ident> = #table_name_ident::table
+            .select(#table_name_ident::all_columns)
+            .load::<#struct_name_ident>(&*conn)
+            .expect("Whoops, like this went bananas!");
+
+        Json(bikes)
+    }
+
+        };
+    gen.into()
+}
+
+#[proc_macro]
+pub fn post_endpoint(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as ExprStruct);
+    impl_post_endpoint(ast)
+}
+
+fn impl_post_endpoint(ast: ExprStruct) -> TokenStream {
+    // turn this into a utility function
+    let mut name_string = utils::gt_first_field(&ast);
+    let struct_name_ident = utils::mk_ident(&name_string);
+    let mut table_name = String::from(&name_string);
+    table_name.push_str("s");
+    name_string.insert_str(0, "New");
+    let new_struct_name_ident = utils::mk_ident(&name_string);
+
+    let table_name_ident = utils::mk_ident(&table_name);
+
+    let gen = quote! {
+
+            #[post("/", format = "application/json", data = "<new_bike>")]
+    pub fn new(db_conn: State<db::ConnectionPool>, new_bike: Json<#new_struct_name_ident>) -> Json<#struct_name_ident> {
+        let conn = db_conn
+            .get()
+            .expect("Could not establish database connection");
+        let bikes: #struct_name_ident = diesel::insert_into(#table_name_ident::table)
+            .values(new_bike.into_inner())
+            .get_result(&*conn)
+            .expect("Error saving new Bike");
+
+        Json(bikes)
+    }
+
+            };
+    gen.into()
+}
+
+#[proc_macro]
+pub fn delete_endpoint(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as ExprStruct);
+    impl_delete_endpoint(ast)
+}
+
+fn impl_delete_endpoint(ast: ExprStruct) -> TokenStream {
+    // turn this into a utility function
+    let name_string = utils::gt_first_field(&ast);
+    let struct_name_ident = utils::mk_ident(&name_string);
+    let mut table_name = String::from(&name_string);
+    table_name.push_str("s");
+
+    let table_name_ident = utils::mk_ident(&table_name);
+
+    let gen = quote! {
+    #[delete("/<rid>", format = "application/json")]
+    pub fn delete(rid: i32, db_conn: State<db::ConnectionPool>) -> Json<#struct_name_ident> {
+        let conn = db_conn
+            .get()
+            .expect("Could not establish database connection");
+        let bike = diesel::delete(#table_name_ident::table.find(rid))
+            .get_result::<#struct_name_ident>(&*conn)
+            .expect(&format!("Unable to find bike {:?}", rid));
+        Json(bike)
+    }
+    };
+    gen.into()
 }
 
 fn impl_ignite(ast: ExprArray) -> TokenStream {
@@ -104,6 +204,7 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
     let fields_value: Expr = fields_field.cloned().map(|f| f.expr).unwrap();
 
     // TODO figure out what we are doing here
+    // We are making struct variant fields so convert this into mk_struct_fields(array of ExprStruct of type Record ) -> array of Fields
     let fields_array = match &fields_value {
         Expr::Array(expr_array) => expr_array.elems.iter().map(|field: &Expr| match field {
             Expr::Struct(expr_struct) => {
