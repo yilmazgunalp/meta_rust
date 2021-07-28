@@ -152,6 +152,40 @@ fn impl_delete_endpoint(ast: ExprStruct) -> TokenStream {
     gen.into()
 }
 
+#[proc_macro]
+pub fn put_endpoint(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as ExprStruct);
+    impl_put_endpoint(ast)
+}
+
+fn impl_put_endpoint(ast: ExprStruct) -> TokenStream {
+    // turn this into a utility function
+    let mut name_string = utils::gt_first_field(&ast);
+    let struct_name_ident = utils::mk_ident(&name_string);
+    let mut table_name = String::from(&name_string);
+    table_name.push_str("s");
+
+    name_string.insert_str(0, "New");
+    let new_struct_name_ident = utils::mk_ident(&name_string);
+
+    let table_name_ident = utils::mk_ident(&table_name);
+
+    let gen = quote! {
+        #[put("/<rid>", format = "application/json", data = "<bike>")]
+        pub fn update(rid: i32, bike: Json<#new_struct_name_ident>, db_conn: State<db::ConnectionPool>) -> Json<#struct_name_ident> {
+            let conn = db_conn
+                .get()
+                .expect("Could not establish database connection");
+            let bike = diesel::update(#table_name_ident::table.find(rid))
+                .set(bike.into_inner())
+                .get_result::<#struct_name_ident>(&*conn)
+                .expect(&format!("Unable to find bike {:?}", rid));
+            Json(bike)
+        }
+    };
+    gen.into()
+}
+
 fn impl_ignite(ast: ExprArray) -> TokenStream {
     dbg!(&ast);
     let gen = quote! {
