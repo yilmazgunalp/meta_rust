@@ -243,7 +243,15 @@ fn impl_create_model(ast: ExprStruct) -> TokenStream {
         Expr::Array(expr_array) => expr_array.elems.iter().map(|field: &Expr| match field {
             Expr::Struct(expr_struct) => {
                 let field_name = utils::gt_first_field(expr_struct);
-                utils::mk_field(&field_name)
+                let field_type = utils::gt_field_by_name(expr_struct, "typ").unwrap();
+                let field_type_value = match &field_type.expr {
+                    Expr::Lit(expr_lit) => match &expr_lit.lit {
+                        Lit::Str(str_lit) => str_lit.value(),
+                        _ => panic!(),
+                    },
+                    _ => panic!(),
+                };
+                utils::mk_field(&field_name, &field_type_value)
             }
             _ => panic!("Not Expression Struct"),
         }),

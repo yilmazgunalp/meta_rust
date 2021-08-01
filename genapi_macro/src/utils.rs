@@ -1,4 +1,7 @@
-use std::iter::{FromIterator, Map};
+use std::{
+    iter::{FromIterator, Map},
+    str::FromStr,
+};
 
 use super::record::{Record, Rfield};
 use proc_macro2::Span;
@@ -6,14 +9,16 @@ use syn::{
     punctuated::Punctuated,
     token::{Colon, Pub, Star},
     Expr, ExprArray, ExprStruct, Field, FieldValue, Ident, Lit, Member, Path, PathArguments,
-    PathSegment, Type, TypePath, VisPublic, Visibility,
+    PathSegment, Token, Type, TypePath, VisPublic, Visibility,
 };
+
+use proc_macro2::TokenStream as Ts;
 
 pub fn mk_ident(name: &str) -> Ident {
     Ident::new(name, Span::call_site())
 }
 
-pub fn mk_field(name: &str) -> Field {
+pub fn mk_field(name: &str, typ: &str) -> Field {
     Field {
         attrs: vec![],
         vis: Visibility::Public(VisPublic {
@@ -21,26 +26,15 @@ pub fn mk_field(name: &str) -> Field {
         }),
         ident: Some(mk_ident(name)),
         colon_token: Some(Colon(Span::call_site())),
-        ty: Type::Path(TypePath {
-            qself: None,
-            path: Path {
-                leading_colon: None,
-                segments: Punctuated::from_iter(vec![
-                    PathSegment {
-                        ident: mk_ident("std"),
-                        arguments: PathArguments::None,
-                    },
-                    PathSegment {
-                        ident: mk_ident("string"),
-                        arguments: PathArguments::None,
-                    },
-                    PathSegment {
-                        ident: mk_ident("String"),
-                        arguments: PathArguments::None,
-                    },
-                ]),
-            },
-        }),
+        ty: mk_field_type(typ),
+    }
+}
+
+fn mk_field_type(typ: &str) -> Type {
+    match typ {
+        "Bool" => Type::Verbatim(Ts::from_str("bool").unwrap()),
+        "Text" => Type::Verbatim(Ts::from_str("String").unwrap()),
+        _ => panic!("Field type is not valid"),
     }
 }
 
