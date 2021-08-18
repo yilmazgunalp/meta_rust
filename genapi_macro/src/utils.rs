@@ -3,7 +3,6 @@ use std::{
     str::FromStr,
 };
 
-use super::record::{Record, Rfield};
 use proc_macro2::Span;
 use syn::{
     punctuated::Punctuated,

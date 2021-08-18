@@ -32,7 +32,6 @@ use syn::{
 };
 use syn::{punctuated::Punctuated, Member};
 
-mod record;
 mod utils;
 
 #[proc_macro]
